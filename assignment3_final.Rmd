@@ -1,0 +1,560 @@
+---
+title: "Assignment 3"
+output: html_document
+date: "2023-06-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+1. Introduction
+
+Introduction 
+
+As the world has evolved, social awareness has evolved along with it.  In recent decades there seems to have occurred a noticeable change in attitudes towards non-heteronormativity. Understanding and support for what until not so long ago was considered different has led to a change in perception with respect to the different groups that fall under the acronym LGBT (lesbian, gay, bisexual and  transexual ). These  acronyms include both sexual orientations and gender self-determination, issues that have always been in the popular debate, although not always with good words. The acceptance towards LGBT+ individuals have increased in many countries around the world. As demonstrated by data from International Social Survey Program in 90% of the countries included in the project there has been observed a trend towards greater acceptance of same-sex relations (Smith et al. 2014). For instance, the percentage of people believing that sexual relations between two adults of the same gender are “always wrong” has fallen from 64% in 1987 to 22% in 2021 in Great Britan (Park & Rhead, 2013), while in the United States, the rate of approval towards gay marriage has increased by 37 percentage points between 1988 and 2012 (Smith et al. 2014).  Public involvement by celebrities, activists and even politicians has helped to dismantle stereotypes and condemn discriminatory attitudes, and has given impetus to such improvement. In addition, the emergence of new communication networks, such as the internet or social media directly, has enabled the development of safe networks for those whose environment was not as welcoming as it should have been. This has allowed many people to be strengthened and empowered to live life as who they are and what they feel. 
+
+That being said, even in the overall more accepting countries, such as the U.S., the percentage of people believing that non-heteronormativity should not be accepted is far from zero. In various segments of populations  there still exists a strong anti-LGBT+ prejudice and, consequently, queer individuals still are likely to experience various type of discrimination. While social media has created new safe spaces for such people, it has also allowed hate groups to organise and reinforce such discourses. Spaces such as Twitter, and even more so today, have been transformed into networks for harassing certain figures. Being a space that allows anonymity and does not condemn such discourses to a large extent, it has allowed the radicalisation of some positions, taking hate to disproportionate levels. 
+
+Therefore, researching the attitudes towards non-heteronormativity still seems vital for social sciences. For this reason, we believe that the study of the contents created on the internet with respect to the LGBTIQ+ collective can provide a good image of what the real perception of the population is. To do so, we have made use of a selection of Tweets related to this topic, trying to update the question "What is the real perception expressed towards the LGBT community? Based n this we will try  to also answer different questions that have arisen throughout the research, such as: ”Does the subject of hashtags matter when writing?”, “Is sentiment analysis enough to determine the trend of a set?” or “Has the perception of the population really improved with respect to this group?” 
+
+2. Data and methods
+
+In the following research project, we are attempting at getting a better understanding of this matter by analyzing the discourse about LGBT+ community. The data that we believe to be representative of the aforementioned discourse comes from Twitter. The choice of Twitter as the source of data is not only motivated by it being a very popular social media platform actively used by 368 million internet users monthly, but also by the format of the content posted by the users on the platform. Twitter is mainly used for sharing short text posts, which makes the platform a convenient place for expressing thoughts and opinions on various topics, including the attitudes towards LGBT+.  
+
+Our research objective is to perform an exploratory analysis of the discourse about LGBT+ community on Twitter through methods of automated text analysis. We intend to obtain the answers  to the questions posed above through the analysis. Firstly, we want to learn which words are used the most frequently in Tweets about LGBT+ community. We are also interested in finding out which hashtags are used . Moreover, we intend analyze which words follow the abbreviation “LGBT” in the Tweets by the use of bigrams. We also want to find out what is the sentiment of the Tweets mentioning LGBT+ community and which words are paired with “LGBT” in the positive and negative Tweets. Finally, we are interested in the topics prevailing in the Tweets about the LGBT+ community. 
+
+Due to the current limitations placed by Twitter on data scraping we have decided to use a previously existing dataset in our analysis. The dataset was shared on Kaggle by the user Marionette and consist of 32450 Tweets scraped from Twitter using the keyword "LGBT". The link to said data set can be found in the last appendix of this document. The selected tweets cover the period of one week, particularly between August 20, 2022 and August 27 of the same year. They have been collected through the use of APIs and are global data . Additionally, as the use of abbreviations and slang words is very common on Twitter, for the preprocessing of the data made use of a dataset shared on Kaggle by the user Gowri Shankar Penugonda which is a dictionary of internet slang and abbreviations. After reviewing it, we have also added some terms, such as the different nomenclatures for the LGBT collective, and thus provide a common vocabulary among the Tweets. 
+
+#Libraries 
+```{r}
+rm(list = ls())
+library(glue)
+library(tidyverse)
+library(quanteda) 
+library(quanteda.textstats)
+library(quanteda.textplots)
+library(udpipe) 
+library(spacyr)
+library(stringr)
+library(purrr)
+library(vader)
+library(glue)
+library(readtext)
+library(quanteda.textmodels)
+library(MLmetrics)
+library(topicmodels)
+library(keras)
+library(sentimentr)
+library(tm)
+```
+
+
+```{r}
+# Set the file path
+file_path <- "C:\\Users\\wlosz\\Downloads\\LGBT_Tweets_processed.csv"
+
+# Import the CSV file
+# We only need the columns 'id' and 'tweet' for the analysis
+data <- read.csv(file_path)
+selected_data <- data[, c("id", "tweet")]
+```
+
+```{r}
+#Inspecting the data
+dim(selected_data)
+head(selected_data)
+```
+
+```{r}
+#Changing the data type of the 'id' column
+selected_data$id <- as.character(selected_data$id)
+selected_hashtags<-selected_data
+```
+
+3. Data Preprocessing
+
+To begin with, we selected the columns we were most interested in from the dataset, which in this case corresponds to a user ID code, and the tweet it contains.  We then removed all the usernames, links, emojis and hashtags from the Tweets. Next, we turned all the Tweets to lower case to give them the common format needed for any text modeling study. Since it is common for social media users to use slang terms and abbreviations instead of full words, we have imported an additional dataset which is a dictionary of slang. We removed all the keys that are ambiguous or not useful from the perspective of our analysis ,corrected some of thems and appended the dictionary with some additional keys. All the variations of the abbreviation “LGBT" such as “LGBT+” or “LGBTQ” got replaced with “LGBT”.  Once we fitted the dictionary to our specific needs, we replaced all the words from the Twitter dataset that matched the keys of the dictionary with matching expansions.  In order to also analyze the hashtags of these tweets, we have kept a version of the raw data, from which we will carry out a similar cleaning process, although in a different order. 
+
+```{r}
+#Removing usernames
+selected_data$tweet <- gsub("(^|[^@\\w])@(\\w{1,15})\\b", " ", selected_data$tweet)
+#Removing links
+selected_data$tweet <- gsub("\\bhttps?://\\S*|&\\w+;", "", selected_data$tweet)
+#Removing emojis
+selected_data$tweet <- gsub("[^\x01-\x7F]", "", selected_data$tweet)
+#Removing hashtags
+selected_data$tweet <- gsub("#\\w+", "", selected_data$tweet)
+
+#Inspecting the data
+head(selected_data)
+```
+
+```{r}
+#converting all the tweets to lower case
+selected_data <- data.frame(apply(selected_data, 2, tolower))
+head(selected_data)
+```
+
+
+```{r}
+#We also need to remove all the abbreviations and slang words
+#To do that we're using another csv file - dictionary of slang words
+dictionary <- read.csv("C:\\Users\\wlosz\\Downloads\\slang.csv")
+
+#We need to remove some values from the dictionary:
+# - abbreviations that are actual words (for example 'in', 'so, 'it');
+# - abbreviations that are not useful from the perspective of our analysis
+# - the 'lgbt' abbreviation
+
+#The values to remove were found by manually inspecting the 'dictionary' data frame
+
+#Creating a vector of values to remove based on the value of X
+values_to_remove <- c(138, 165, 241, 258,367, 381, 449, 450, 447, 449, 509, 
+                      516,519, 532, 552, 568, 576, 577, 585, 599, 
+                      640,648, 651, 654, 684, 733, 740, 744, 810,
+                      823, 960, 1019, 1092, 1214, 1303, 1371, 1378, 1463, 1502,
+                      1542, 1571, 1590, 1629, 1673, 1701, 1723,
+                      1754, 1808, 1858, 1869, 1919, 2026, 2058, 2065,
+                      2084, 2108, 2138, 2183, 2188, 2198, 2217, 2221,
+                      2225, 2271, 2274, 2353, 2375, 2376, 2383,
+                      2388, 2391, 2392, 2398, 2401, 2415, 2418,
+                      2420, 2440, 2453, 2517, 2525, 2536, 2554,
+                      2587, 2633, 2666, 2695, 2726, 2755, 2757, 2791,
+                      2802, 2835, 2843, 2945, 3019, 3066, 2088, 3107,
+                      3152, 3085, 3183, 3207, 3351)
+
+#Filtering the dictionary
+filtered_dictionary <- dictionary %>% 
+  filter(!X %in% values_to_remove)
+
+```
+
+
+```{r}
+#We also correct the abbreviations that have multiple expansions
+#We assign them only one expansion
+
+filtered_dictionary_2 <- filtered_dictionary %>% 
+  mutate(expansion = ifelse(X == 437, "at the moment", expansion)) %>%
+  mutate(expansion = ifelse(X == 621, "direct message", expansion)) %>%
+  mutate(expansion = ifelse(X == 2270, "politically correct", expansion))
+
+head(filtered_dictionary_2)
+```
+
+```{r}
+#We create a data frame of new keys that we want to add to the dictionary.
+#We add abbreviations used by twitter used that were not included in the dictionary
+#We also want change all of the possible names of the lgbt+ community to one name: 'lgbt'.
+
+new_keys <- data.frame(X = 3357:3379, acronym = 
+                         c('v','r','u','pass agg','aggy','blm','w ','fr','idgaf','ppls','tf','blk','poc',
+                           'lgbt+','lgbtq','lgbtq+','lgbti','lbgt','lgbtqi','+','lgbts','lgbtqia','lgbt \\+'),
+                       expansion = c('very','are','you','passive agressive', 'aggravated',
+                                     'black lives matter','with','for real',"i don't give a fuck","people's",
+                                     'the fuck','black','person of color','lbgt','lgbt','lgbt','lgbt','lgbt',
+                                     'lgbt','','lgbt','lgbt', 'lgbt'))
+#Adding the new keys
+final_dictionary <- rbind(filtered_dictionary_2, new_keys)
+```
+
+```{r}
+#Inspecting the final dictionary
+head(final_dictionary)
+```
+
+```{r}
+#We create a function that matches abbreviations in the text of the tweets and replace them with expansions
+#I created this code with a little help from chatGPT ;)
+
+replace_acronym <- function(tweet, acronym, expansion) {
+  pattern <- paste0("\\b", gsub("([][{}()+*^$|?.\\\\])", "\\\\\\1", acronym), "\\b")
+  str_replace_all(tweet, pattern, expansion)
+}
+
+selected_data$tweet <- reduce(seq_len(nrow(final_dictionary)), 
+                              function(tweet, i) replace_acronym(tweet, final_dictionary$acronym[i], final_dictionary$expansion[i]), 
+                              .init = selected_data$tweet)
+```
+
+
+```{r}
+#Examining the selected data
+head(selected_data)
+```
+4. Data Analysis
+
+4.1. Word Clouds
+
+In order to generate word clouds, we first removed punctuation and stop words from the Tweets. Next, we turned the dataset into document-feature matrix. 
+
+```{r}
+#Turning the tweets into a document-feature matrix
+tweets = corpus(selected_data$tweet) %>% 
+  tokens(remove_punct=T) %>% 
+  dfm() %>%
+  dfm_remove(stopwords("english"))
+head(tweets)
+```
+
+
+```{r}
+#Creating a document-feature matrix
+colors = RColorBrewer::brewer.pal(8, "Dark2")
+textplot_wordcloud(tweets, max_words=100, 
+    min_size = 1, max_size=4, random_order=TRUE,
+    random_color= TRUE, color=colors)
+```
+The results from word clouds give us a good overview on most frequently occuring words. While word clouds are not good for most kinds of detailed analysis, they can be thought of as an insight that will help us better understand how to steer our research going forward. What we can immediately see, is that positive words, such as laughing, support, world, happy are among the frequently occurring words. This gives us an idea, that positive messages should be frequent in corpus. We also see some words that give us an idea of context that LGBT is mentioned in often, such as kids, police, school. All these words are likely in the word cloud as they refer to topics around LGBT community that are most often discussed. Overall, word cloud also gives us a reassurance that data has been handled correctly, as the results are mostly in line with expectations (however it is not clear why the word ‘explosives’ is one of the frequently occuring words). 
+
+4.2. Analysis of the Hashtags
+
+The use of hashtags, very common tags on content platforms, can provide a lot of information about the topics discussed throughout the tweets. Through its analysis we will be able to verify if the topics that we obtain here coincide in any way with those of the analysis of the tweets in full. 
+
+To carry out this analysis, we start from the raw data, since in previous processes we would have gotten rid of all hashtags. Over the complete set we first select every string beginning with the symbol #. Once we have all the hashtags, we give them a common format following the same steps as in the previous process. So we get rid of punctuation marks, spaces and convert everything to lowercase. 
+
+The process is quite similar to what we have carried out with tweets, so we pass the hashtags through our dictionary, and we substitute those terms that match, and we also eliminate the stopwords corresponding to English, which is the majority language. 
+
+
+```{r}
+#Since some usefull information can be recorded from them, we will take a similar approach over the hashtags
+#First we selected those phrases or words starting with a #
+final_hashtag <- regmatches(selected_hashtags$tweet, gregexpr("#\\w+",selected_hashtags$tweet))
+final_hashtag<-data.frame(unlist(final_hashtag, recursive = TRUE))
+names(final_hashtag)[1]<-"hashtags"
+
+```
+
+```{r}
+#Then we clean them by removing any symbol and space and giving them a common format with a lowercase.
+final_hashtag$hashtags <- gsub("[[:punct:]]", "", final_hashtag$hashtags)
+final_hashtag$hashtags <- gsub(" ", "", final_hashtag$hashtags)
+final_hashtag <-data.frame(apply(final_hashtag, 1, tolower))
+names(final_hashtag)[1]<-"hashtags"
+head(final_hashtag)
+
+```
+
+```{r}
+#Finally we will make use of the same dictionary as before and study the frequency of terms
+
+replace_acronym <- function(tweet, acronym, expansion) {
+  pattern <- paste0("\\b", gsub("([][{}()+*^$|?.\\\\])", "\\\\\\1", acronym), "\\b")
+  str_replace_all(tweet, pattern, expansion)
+}
+
+final_hashtag$hashtags <- reduce(seq_len(nrow(final_dictionary)), 
+                              function(tweet, i) replace_acronym(final_hashtag$hashtags, final_dictionary$acronym[i], final_dictionary$expansion[i]), 
+                              .init = final_hashtag$hashtags)
+```
+
+```{r}
+#Turning the hashtags into a document-feature matrix
+hashtags = corpus(final_hashtag$hashtags) %>% 
+  tokens(remove_punct=T) %>% 
+  dfm() %>%
+  dfm_remove(stopwords("english"))
+head(hashtags)
+```
+
+```{r}
+#Creating a document-feature matrix
+colors = RColorBrewer::brewer.pal(8, "Dark2")
+textplot_wordcloud(hashtags, max_words=100, 
+    min_size = 1, max_size=4, random_order=TRUE,
+    random_color= TRUE, color=colors)
+#We can see  that the hashtags are related to many topics, but the pior one would be the lgbt community, which makes sence. Other common themes seem to be culture and politics, with the latter featuring references to both politicians and countries.
+```
+Once we have the hashtags ready, we carry out a representation in the form of a wordcloud where we can see the main topics. As we can see in the image, the main word is lgbt, a pretty obvious result. If we look at the others, despite having a much lower frequency, we can see some quite clear trends. On the one hand, we can identify a relationship with politics, with references to some politicians and some countries. On the other hand, many of the remaining hashtags refer to reading challenges, books, or audiovisual content. What does this suggest to us? As we mentioned in the introduction, the movement for lgbt rights and presence is closely linked to politics. For this reason, we can identify as a recurring theme the situation of this group according to the events of a country or the measures taken by a politician in this matter. Finally, we can see how cultural references and the consumption of all types of culture are related to this type of comment. Since the data set contemplates tweets with all kinds of opinions, we could relate this to the celebration of representation in different media, as well as the criticism of the so-called "forced inclusion" in the negative case. 
+
+4.3. Bigrams Featuring “LGBT”
+
+To obtain a list of bigrams featuring the abbreviaiton LGBT, we tokenized the Tweets in the same way as before generating word clouds. Next, we filtered the bigrams using the keyword ‘lgbt’. 
+
+```{r}
+#Tokenizing the tweets
+tokens = corpus(selected_data$tweet) %>% 
+  tokens(remove_punct = T) %>% 
+  tokens_remove(stopwords('en'))
+
+dfm_bigram = tokens %>%  
+  tokens_ngrams(1:2) %>% 
+  dfm()
+
+```
+
+
+```{r}
+#Filtering the bigrams 
+textstat_frequency(dfm_bigram) %>% 
+  filter(str_detect(feature, 'lgbt')) %>% 
+  head(20)
+```
+As can be seen many bigrams are related to pro-LGBT+ activism. An example of that can be ‘lgbt_rights’, ‘support_lgbt’ or ‘lgbt_movement’. Some of the bigrams are related directly to LGBT+ individuals, for instance: ‘lgbt_people’, ‘lgbt_person’, ‘women_lgbt’. It is worth noting, that most of the bigrams can be interpreted as expressing either a neutral or a positive sentiment, with the exception of  ‘anti-lgbt’. 
+
+4.4 Sentiment Analysis of the Tweets Using Vader Sentiment Analysis
+
+We have used two different algorithms for sentiment analysis. The first one is the lexicon-based Vader sentiment analysis algorithm and the second one is the Maximum Entropy algorithm.  
+
+In order to perform sentiment analysis using the Vader algorithm, we have downloaded a set of positive and negative words and created a sentiment analysis dictionary. After preprocessing the dataset of Tweets, we used the dictionary to calculate the sentiment of each Tweet by subtracting the number of negative words from the number of positive ones. 
+
+```{r}
+#Importing positive and negative words
+poswords = "https://cssbook.net/d/positive.txt"
+negwords = "https://cssbook.net/d/negative.txt"
+pos = scan(poswords, what="list")
+neg = scan(negwords, what="list")
+
+#Creating a dictionary for sentiment analysis
+sentimentdict = dictionary(list(pos=pos, neg=neg))
+```
+
+```{r}
+#Creating sentiment_lgbt data frame
+sentiment_lgbt = selected_data$tweet %>% 
+  corpus() %>% 
+  tokens() %>% 
+  dfm() %>% 
+  dfm_lookup(sentimentdict) %>% 
+  convert(to = "data.frame") %>% 
+  mutate(sent = pos - neg)
+
+sentiment_lgbt <- cbind(selected_data$tweet, sentiment_lgbt[,-1])
+colnames(sentiment_lgbt)
+head(sentiment_lgbt)
+```
+
+```{r}
+#Calculating mean sentiment
+cat("Mean sentiment is:", mean(sentiment_lgbt$sent),"\n")
+
+#Calculating the number of tweets with positive and negative sentiment
+condition <- sentiment_lgbt$sent > 0
+num_positive <- sum(condition)
+num_negative <- sum(!condition)
+
+cat("Number of tweets with positive sentiment:", num_positive, "\n")
+cat("Number of tweets with negative sentiment:", num_negative, "\n")
+  
+```
+Next, we calculated the mean sentiment as well as the number of positive and negative Tweets. The mean sentiment obtained using the Vader algorithm was 0.1850197. However, the number of negative Tweets was nearly twice as high as the number of positive Tweets. This might indicate that the positive Tweets had a significantly stronger emotional sentiment than the negative tweets. 
+
+4.5. Bigrams for Positive and Negative Tweets
+
+After performing the sentiment analysis with the Vader algorithm, we created two data frames: one containing only the negative Tweets and one containing only the positive ones. Next, we used those two data frames to create two lists of bigrams featuring the “LGBT” abbreviation, one from negative only and one from positive only Tweets. 
+
+```{r}
+#Creating 'negative' data frame with just the negative tweets
+negative <- sentiment_lgbt %>%
+  filter(sent < 0)
+```
+
+```{r}
+#Crating a data frame of bigrams featuring 'lgbt' for tweets with negative sentiment
+tokens_neg = corpus(negative$`selected_data$tweet`) %>% 
+  tokens(remove_punct = T) %>% 
+  tokens_remove(stopwords('en'))
+
+neg_bigram = tokens_neg %>%  
+  tokens_ngrams(1:2) %>% 
+  dfm()
+
+textstat_frequency(neg_bigram) %>% 
+  filter(str_detect(feature, 'lgbt')) %>% 
+  head(30)
+```
+Even though some pairs of words appeared in both sets of bigrams the differences between the two sets are noticeable. In the set of bigrams obtained using negative Tweets we can find phrases referring to the discrimination of the LGBT+ community such as ‘hate_lgbt’, ‘anti_lgbt’, ‘fight_lgbt, ‘penalty_lbgt’. Moreover, some bigrams can be interpreted as relating to the idea of ‘LGBT ideology’. Examples of those are ‘lgbt_agenda’ and ‘lgbt_propaganda’. 
+
+```{r}
+#Creating 'positive' data frame with just the positive tweets
+positive <- sentiment_lgbt %>%
+  filter(sent > 0)
+```
+
+```{r}
+#Crating a data frame of bigrams featuring 'lgbt' for tweets with positive sentiment
+tokens_pos = corpus(positive$`selected_data$tweet`) %>% 
+  tokens(remove_punct = T) %>% 
+  tokens_remove(stopwords('en'))
+
+pos_bigram = tokens_pos %>%  
+  tokens_ngrams(1:2) %>% 
+  dfm()
+
+textstat_frequency(pos_bigram) %>% 
+  filter(str_detect(feature, 'lgbt')) %>% 
+  head(30)
+```
+Bigrams obtained using positive Tweets are referring to already mentioned pro-LGBT+ activism as well as expressing generally approving attitudes towards LGBT+. Phrases such as ‘lgbt_pride’, ‘supporting_lgbt’ or ‘lgbt_flag’, ‘lgbt_friendly’ or ‘love_lgbt’ can be found in this set of bigrams.  
+
+4.6.Sentiment Analysis of Tweets Using Maximum Entropy Algorithm
+
+After examining the positive/negative classification performed using the Vader algorithm we were not fully satisfied with the results. Since Vader sentiment analysis works by evaluating the sentiment of each word in the document separately, it is sensitive to missing the general tone of the text.  For example the Tweet “im rolling with the lgbt” was classified by the algorithm as expressing neutral sentiment even though it clearly expresses positive attitude towards LGBT+ people. Therefore, we decided to also use the non-lexicon-based algorithm Maximum Entropy.  
+
+After removing punctuation and stop words from the dataset we used the get_sentences() function to split the Tweets into sentences. Since the punctuation was removed every Tweet was considered by the algorithm to be just one sentence. Next, we applied the sentiment() function to the sentences. This way we obtained a sentiment score for each Tweet.  
+
+```{r}
+#Preprocessing the text
+
+sent <- gsub("[[:punct:]]", "", selected_data$tweet) %>%
+  removeWords(stopwords("english")) %>%
+  get_sentences()
+```
+
+```{r}
+#Calculating sentiment scores
+
+sentiment_scores <- sentiment(sent, algorithm = "maxent")
+```
+
+
+```{r}
+#Creating a dataframe 
+
+sentiment_lgbt_2 <- cbind(selected_data, sentiment_scores$sentiment)
+
+condition <- sentiment_lgbt_2$`sentiment_scores$sentiment` > 0
+num_positive <- sum(condition)
+num_negative <- sum(!condition)
+
+cat("Mean sentiment is:", mean(sentiment_lgbt_2$`sentiment_scores$sentiment`),"\n")
+
+cat("Number of tweets with positive sentiment:", num_positive, "\n")
+cat("Number of tweets with negative sentiment:", num_negative, "\n")
+  
+```
+We again calculated the mean sentiment as well as the number of positive and negative Tweets. This time the mean sentiment was less positive: 0.06588579 and the number of positive and Tweets more balanced: 16709 and 15747 respectively.  
+
+4.7. Bigrams for Positive and Negative Tweets using Maximum Entropy
+
+The same way as with the classification of positive and negative Tweets obtained using the Vader algorithm, we have generated two sets of bigrams featuring ‘lgbt’ keyword based on the Maximum Entropy sentiment analysis.
+
+```{r}
+#Creating 'negative' data frame with just the negative tweets
+negative_2 <- sentiment_lgbt_2 %>%
+  filter(`sentiment_scores$sentiment` < 0)
+```
+
+```{r}
+#Crating a data frame of bigrams featuring 'lgbt' for tweets with negative sentiment
+
+tokens_neg_2 = corpus(negative_2$tweet) %>% 
+  tokens(remove_punct = T) %>% 
+  tokens_remove(stopwords('en'))
+
+neg_bigram_2 = tokens_neg_2 %>%  
+  tokens_ngrams(1:2) %>% 
+  dfm()
+
+textstat_frequency(neg_bigram_2) %>% 
+  filter(str_detect(feature, 'lgbt')) %>% 
+  head(30)
+```
+
+```{r}
+#Creating 'positive' data frame with just the positive tweets
+positive_2 <- sentiment_lgbt_2 %>%
+  filter(`sentiment_scores$sentiment` > 0)
+```
+
+```{r}
+#Creating a data frame of bigrams featuring 'lgbt' for tweets with positive sentiment
+
+tokens_pos_2 = corpus(positive_2$tweet) %>% 
+  tokens(remove_punct = T) %>% 
+  tokens_remove(stopwords('en'))
+
+pos_bigram_2 = tokens_pos_2 %>%  
+  tokens_ngrams(1:2) %>% 
+  dfm()
+
+textstat_frequency(pos_bigram_2) %>% 
+  filter(str_detect(feature, 'lgbt')) %>% 
+  head(30)
+```
+However, the bigrams were very similar to the ones generated using the Vader algorithm classification. It can mean that even though the results of the sentiment analysis performed using the two algorithms differ, the words most frequently paired with the ‘LGBT’ abbreviation are the same. 
+
+It must be noted that the Tweets expressing positive and negative sentiment should not be equated with being pro- and anti-LGBT respectively. However, the sentiment analysis can give an important insight into emotions and sentiments dominating the discourse about LGBT+ community. 
+
+4.8. Topic Modelling Using LDA
+
+Once we have verified the frequencies of the different groupings of terms, we can focus on a more general analysis of the themes of all the tweets. For this we will use the LDA (Latent Dirichlet Allocation) methodology, which allows us to group words by related categories.  
+
+To obtain a homogeneous data set, we carry out a lemmatization, a process by which we assign each word its simplest form, an example would be the case of verbs where we would associate any conjugation with the infinitive. Following the steps that we have carried out throughout the different analyzes of this work, we then take care of the total cleaning of the elements. We eliminate stopwords , punctuation marks and separations between words and define a matrix with the occurrences of the different terms. 
+
+```{r}
+#We're lemmatizing the words to improve the topis coherence
+
+#Getting the lemmas using udpipe and aggregating them into a new dataframe
+
+df <- udpipe(selected_data$tweet, "english")
+new_df <- aggregate(lemma ~ doc_id, data = df, FUN = paste, collapse = " ")
+```
+
+```{r}
+#Inspecting the lemmatized data
+head(new_df)
+```
+
+
+```{r}
+#Creating a document-feature matrix from the lemmas 
+lgbt = new_df$lemma %>% 
+  corpus() %>% 
+  corpus_reshape("paragraphs")
+dfm = lgbt %>% 
+  tokens(remove_punct=T) %>%
+  dfm() %>% 
+  dfm_remove(stopwords("english")) %>%
+  dfm_trim(min_docfreq=.05,docfreq_type = "prop")
+dfm
+```
+
+
+```{r}
+#Performing the topic modelling
+
+#Since we are working on a dataset of tweets we decided to select a small value of alpha,
+#because it is more likely that each document is dominated by a single topic.
+
+lda = dfm %>% 
+  convert(to = "topicmodels") %>% 
+  LDA(k=5, control = list(seed=123, alpha=0.1))
+```
+
+
+```{r}
+terms(lda, 20)
+```
+
+Despite having a large number of tweets, when it comes to topics we could say that each tweet summarizes a unique one. To capture this, we have implemented the LDA model with an alpha small enough to capture this trend, and to compare the different clusters, we have set the number of topics to 5. We can see in the following list how none of the topics really stands out from the others. So we can conclude two things. First of all, the general theme in most of the tweets is focused on the different groups that make up the LGBT community and the feeling of community and respect, terms that are constantly repeated. The second thing is linked to the selection of content. Since the way to select the tweets is quite simple, it does not provide us with any type of link between the different tweets and users that facilitates a more in-depth analysis.  
+
+5. Discussion of the Results & Conclusion 
+
+To conclude this work we will review the limitations we have found and we will draw the conclusions regarding the questions that we have been raising. 
+
+First of all, we consider the selection of data that provide all the necessary information quite complex. Due to the new Twitter regulation, data collection is increasingly complicated and for this reason we have had to resort to an already available data set. Although the issue of representation and perception of the lgbt community is quite common, we have encountered complications when it comes to locating a sufficiently complete data set to carry out a more in-depth analysis, such as with a geographical variable. The latter would allow us to filter trying to find trends by region, even relating said trend with the political measures carried out in said regions, since as we have seen, politics is a closely linked topic. Despite finding significant results, many of these checks could vary quite a bit once we select another data field. 
+
+In terms of perception, we can see how a positive trend is currently perceived, collected by the sentiment analysis that we have carried out. In the simplest analysis we can see how, despite having a large number of tweets considered negative, the mean value stills positive. Despite this, and with the aim of carrying out a better categorization of the sentiment collected by each tweet, we have included a more complex sentiment dictionary, allowing us to see the tweets with a greater range. With the latter we have been able to verify how even having a lower number of tweets considered negative, these present a much more negative ranking, affecting the overall perception considerably. This could be an example of how in different social networks in recent years negative trends in opinion issues have radicalized considerably, so despite having less representation we could consider that the group with a hateful message “makes more noise". 
+
+Finally, regarding the use of hashtags, despite not having found a direct reinforcement in the topics of the tweets, we can consider how these allow a real summary of the topics and the links that are made between the information. For this reason, we consider that when analyzing information that presents this type of labels, it can always be informative to analyze them independently and check if these results could coincide with what was obtained. 
+
+For all this we can conclude that, despite the fact that twitter only represents a sector of the population, a better consideration is intuited regarding the lgbt issue and what its rights refer to. But we also see endorsement that those who continue to maintain a negative attitude towards these groups have seen all their discourses reinforced. 
+
+6. Bibliography 
+
+Park, A., & Rhead, R. (2013). Changing attitudes towards sex, marriage and parenthood. A. Park, A., Bryson, C., Clery, E., Curtice, J. and Phillips, M. British Social Attitudes, 30, 1-32. 
+
+Pew Research Center. (2020). The Global Divide on Homosexuality Persists. 
+
+https://www.searchlogistics.com/learn/statistics/twitter-user-statistics/ 
+
+Smith, T. W., Son, J., & Kim, J. (2014). Public attitudes toward homosexuality and gay rights across time and countries. 
+
+ 
+
+The links to the datasets: 
+
+https://www.kaggle.com/datasets/vencerlanz09/lgbt-tweets 
+
+https://www.kaggle.com/datasets/gowrishankarp/chat-slang-abbreviations-acronyms 
